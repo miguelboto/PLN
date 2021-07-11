@@ -1,0 +1,169 @@
+
+library(tidyr)
+library(scales)
+library(tidyverse)
+library(tidytext)
+library(stringr)
+library(tibble)
+library(readr)
+library(tm)
+library(stopwords)
+library(syuzhet)
+library(pander)
+library(patchwork)
+
+
+
+
+#Arco emocional o análisis de sentimientos de Cien Años de Soledad
+
+
+
+Encoding(ggm_soledad$V1) <- "latin1"
+
+soledad <- ggm_soledad$V1 %>% 
+  paste0(collapse = " ") %>% 
+  gsub(pattern = "\", \"", replacement = " ")
+
+
+soledad_sentences <- get_sentences(soledad)
+
+
+soledad_sentiment <- get_sentiment(soledad_sentences, 
+                                method = "nrc", 
+                                language = "spanish")
+
+simple_plot(soledad_sentiment, title =  "Syuzhet Plot of Cien años de soledad")
+
+nrc_data <- get_nrc_sentiment(soledad_sentences)
+
+
+
+angry_items <- which(nrc_data$anger > 0)
+soledad_sentences[angry_items]
+
+
+
+test_sentimientos_soledad <- pander(pandoc.table(nrc_data, split.table = Inf))
+
+
+
+barplot(sort(colSums(prop.table(nrc_data))), 
+        horiz = TRUE, 
+        cex.names = 0.7, 
+        las = 1, 
+        main = "'Cien años de soledad' - Emotions in Sample text", xlab="Percentage")
+
+#Arco emocional o análisis de sentimientos de El amor en los tiempos del cólera
+
+Encoding(ggm_colera$V1) <- "latin1"
+
+colera <- ggm_colera$V1 %>% 
+  paste0(collapse = " ") %>% 
+  gsub(pattern = "\", \"", replacement = " ")
+
+
+colera_sentences <- get_sentences(colera)
+
+
+colera_sentiment <- get_sentiment(colera_sentences, 
+                                   method = "nrc", 
+                                   language = "spanish")
+
+simple_plot(colera_sentiment, title = "Syuzhet Plot of El amor en los tiempos del cólera")
+
+
+
+nrc_data_colera <- get_nrc_sentiment(colera_sentences)
+
+
+
+angry_items <- which(nrc_data_colera$anger > 0)
+colera_sentences[angry_items]
+
+
+
+test_sentimientos_colera <- pander(pandoc.table(nrc_data_colera, split.table = Inf))
+
+
+
+ barplot(sort(colSums(prop.table(nrc_data_colera))), 
+        horiz = TRUE, 
+        cex.names = 0.7, 
+        las = 1, 
+        main = "'El amor en los tiempos del cólera' - Emotions in Sample text", xlab="Percentage")
+
+# Fortunata
+ 
+ Encoding(gal_fortunata$V1) <- "latin1"
+ 
+ fortunata <- gal_fortunata$V1 %>% 
+   paste0(collapse = " ") %>% 
+   gsub(pattern = "\", \"", replacement = " ")
+ 
+ 
+ fortunata_sentences <- get_sentences(fortunata)
+ 
+ 
+ fortunata_sentiment <- get_sentiment(fortunata_sentences, 
+                                    method = "nrc", 
+                                    language = "spanish")
+ 
+ simple_plot(fortunata_sentiment, title =  "Syuzhet Plot of Fortunata y Jacinta")
+ 
+ # Diario de la guerra del cerdo
+ 
+ Encoding(bio_guerra$V1) <- "latin1"
+ 
+ guerra <- bio_guerra$V1 %>% 
+   paste0(collapse = " ") %>% 
+   gsub(pattern = "\", \"", replacement = " ")
+ 
+ 
+ guerra_sentences <- get_sentences(guerra)
+ 
+ 
+guerra_sentiment <- get_sentiment(guerra_sentences, 
+                                      method = "nrc", 
+                                      language = "spanish")
+ 
+ simple_plot(guerra_sentiment, fortunata_sentiment, soledad_sentiment, colera_sentiment, title =  "Syuzhet Plot of 4 novels")
+ 
+ #mix
+ 
+ swdw <- round(length(soledad_sentiment)*.1)
+ soledad_rolled <- zoo::rollmean(soledad_sentiment, k=swdw)
+ cwdw <- round(length(colera_sentiment)*.1)
+ colera_rolled <- zoo::rollmean(colera_sentiment, k=cwdw)
+
+ soledad_list <- rescale_x_2(soledad_rolled)
+ colera_list <- rescale_x_2(colera_rolled)
+
+ plot(soledad_list$x, 
+      soledad_list$z, 
+      type="l", 
+      col="blue", 
+      xlab="Narrative Time", 
+      ylab="Emotional Valence")
+ 
+ lines(colera_list$x, colera_list$z, col="red") 
+ 
+ #mixed normalized
+ 
+ soledad_x <- 1:length(soledad_sentiment)
+ soledad_y <- soledad_sentiment
+ raw_soledad <- loess(soledad_y ~ soledad_x, span=.5)
+ soledad_line <- rescale(predict(raw_soledad))
+ colera_x <- 1:length(colera_sentiment)
+ colera_y <- colera_sentiment
+ raw_colera <- loess(colera_y ~ colera_x, span=.5)
+ colera_line <- rescale(predict(raw_colera))
+ soledad_sample <- seq(1, length(soledad_line), by=round(length(soledad_line)/100))
+ colera_sample <- seq(1, length(colera_line), by=round(length(colera_line)/100))
+ plot(soledad_line[soledad_sample], 
+      type="l", 
+      col="blue",
+      xlab="Narrative Time (sampled)", 
+      ylab="Emotional Valence"
+ )
+ lines(colera_line[colera_sample], col="red")
