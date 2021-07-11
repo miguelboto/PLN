@@ -1,0 +1,516 @@
+
+library(tidyr)
+library(tidyverse)
+library(tidytext)
+library(tm)
+library(syuzhet)
+library(pander)
+library(patchwork)
+library(rvest)
+library(readr)
+library(ggrepel)
+library(xlsx)
+library(ggpubr)
+library(igraph)
+library(ggraph)
+library(grid)
+library(yaml)
+
+
+
+remotes::install_github("schochastics/edgebundle")
+
+## Leyendas Anotación morfosintática modelo _Tree Tagger_
+
+#https://www.cis.uni-muenchen.de/~schmid/tools/TreeTagger/data/spanish-tagset.txt
+
+
+url <- "https://www.cis.uni-muenchen.de/~schmid/tools/TreeTagger/data/spanish-tagset.txt"
+
+tree_tagger <- read_html(url)
+
+tree_tagger %>% 
+  html_nodes("body") %>% 
+  html_text() %>% 
+  strsplit(split = "\n") %>%
+  unlist() %>%
+  .[. != ""] %>% knitr::kable()
+
+
+
+## Importación de archivos
+
+
+cer_quijote <- read.delim("~/~/R Text Analysis/corpus/cer_quijote.txt", encoding="UTF-8", header=FALSE, comment.char="#")
+gra_criticon <- read.delim("~/~/R Text Analysis/corpus/gra_criticon.txt", encoding="UTF-8", header=FALSE, comment.char="#")
+quev_buscon <- read.delim("~/~/R Text Analysis/corpus/quev_buscon.txt", encoding="UTF-8", header=FALSE, comment.char="#")
+ggm_soledad <- read.delim("~/~/R Text Analysis/corpus/ggm_soledad.txt", encoding="UTF-8", header=FALSE, comment.char="#")
+ggm_laberinto <- read.delim("~/~/R Text Analysis/corpus/ggm_laberinto.txt", encoding="UTF-8", header=FALSE, comment.char="#")
+ggm_colera <- read.delim("~/~/R Text Analysis/corpus/ggm_colera.txt", encoding="UTF-8", header=FALSE, comment.char="#")
+llosa_casa <- read.delim("~/~/R Text Analysis/corpus/llosa_casa.txt", encoding="UTF-8", header=FALSE, comment.char="#")
+llosa_catedral <- read.delim("~/~/R Text Analysis/corpus/llosa_catedral.txt", encoding="UTF-8", header=FALSE, comment.char="#")
+men_savolta <- read.delim("~/~/R Text Analysis/corpus/men_savolta.txt", encoding="UTF-8", header=FALSE, comment.char="#")
+men_comedia <- read.delim("~/~/R Text Analysis/corpus/men_comedia.txt", encoding="UTF-8", header=FALSE, comment.char="#")
+men_rina <- read.delim("~/~/R Text Analysis/corpus/men_rina.txt", encoding="UTF-8", header=FALSE, comment.char="#")
+gal_fortunata <- read.delim("~/~/R Text Analysis/corpus/gal_fortunata.txt", encoding="UTF-8", header=FALSE, comment.char="#")
+gal_perfecta <- read.delim("~/~/R Text Analysis/corpus/gal_perfecta.txt", encoding="UTF-8", header=FALSE, comment.char="#")
+gal_marianela <- read.delim("~/~/R Text Analysis/corpus/gal_marianela.txt", encoding="UTF-8", header=FALSE, comment.char="#")
+bio_guerra <- read.delim2("~/~/R Text Analysis/corpus/bio_guerra.txt", encoding="UTF-8", header=FALSE, comment.char="#")
+bio_sueno <- read.delim2("~/~/R Text Analysis/corpus/bio_sueno.txt", encoding="UTF-8", header=FALSE, comment.char="#")
+
+
+
+
+
+cer_quijote_tag <- read_delim("corpus/cer_quijote_tag.txt", "\t", escape_double = FALSE, col_names = FALSE, trim_ws = TRUE) 
+gra_criticon_tag <- read_delim("corpus/gra_criticon_tag.txt", "\t", escape_double = FALSE, col_names = FALSE, trim_ws = TRUE)
+quev_buscon_tag <- read_delim("corpus/quev_buscon_tag.txt", "\t", escape_double = FALSE, col_names = FALSE, trim_ws = TRUE)
+ggm_soledad_tag <- read_delim("corpus/ggm_soledad_tag.txt", "\t", escape_double = FALSE, col_names = FALSE, locale = locale(encoding = "ISO-8859-1"), trim_ws = TRUE)
+ggm_laberinto_tag <- read_delim("corpus/ggm_laberinto_tag.txt", "\t", escape_double = FALSE, col_names = FALSE, trim_ws = TRUE)
+ggm_colera_tag <- read_delim("corpus/ggm_colera_tag.txt", "\t", escape_double = FALSE, col_names = FALSE, trim_ws = TRUE)
+llosa_casa_tag <- read.delim("~/~/R Text Analysis/corpus/llosa_casa_tag.txt", encoding="UTF-8", header=FALSE, comment.char="#")
+llosa_catedral_tag <- read_delim("corpus/llosa_catedral_tag.txt", "\t", escape_double = FALSE, col_names = FALSE, trim_ws = TRUE)
+men_savolta_tag <- read_delim("corpus/men_savolta_tag.txt", "\t", escape_double = FALSE, col_names = FALSE, trim_ws = TRUE)
+men_comedia_tag <- read_delim("corpus/men_comedia_tag.txt", "\t", escape_double = FALSE, col_names = FALSE, trim_ws = TRUE)
+men_rina_tag <- read_delim("corpus/men_rina_tag.txt", "\t", escape_double = FALSE, col_names = FALSE, trim_ws = TRUE)
+gal_fortunata_tag <- read_delim("corpus/gal_fortunata_tag.txt", "\t", escape_double = FALSE, col_names = FALSE, locale = locale(encoding = "ISO-8859-1"), trim_ws = TRUE)
+gal_marianela_tag <- read_delim("corpus/gal_marianela_tag.txt", "\t", escape_double = FALSE, col_names = FALSE, locale = locale(encoding = "ISO-8859-1"), trim_ws = TRUE)
+gal_perfecta_tag <- read_delim("corpus/gal_perfecta_tag.txt", "\t", escape_double = FALSE, col_names = FALSE, locale = locale(encoding = "ISO-8859-1"), trim_ws = TRUE)
+bio_guerra_tag <- read.delim("~/~/R Text Analysis/corpus/bio_guerra_tag.txt", header=FALSE)
+bio_sueno_tag <- read.delim("~/~/R Text Analysis/corpus/bio_sueno_tag.txt", header=FALSE)
+
+table_with_frequencies <- read.csv("~/~/R Text Analysis/table_with_frequencies.txt", sep="")
+
+
+# Archivo de muestra:
+
+
+head(ggm_soledad_tag) %>% knitr::kable()
+
+
+
+
+
+#Inclusión de columnas token y tag
+
+
+# Tratamiento de archivos primarios
+
+quijote <- tibble(token =cer_quijote_tag$X1, tag = cer_quijote_tag$X2, Tit = c("Quijote"), Aut = c("Cervantes")) 
+criticon <- tibble(token =gra_criticon_tag$X1, tag = gra_criticon_tag$X2, Tit = c("Criticon"), Aut = c("Gracián"))
+buscon <- tibble(token =quev_buscon_tag$X1, tag = quev_buscon_tag$X2, Tit = c("Buscon"), Aut = c("Quevedo"))
+soledad <- tibble(token =ggm_soledad_tag$X1, tag = ggm_soledad_tag$X2, Tit = c("Soledad"), Aut = c("GG Márquez"))
+laberinto <- tibble(token =ggm_laberinto_tag$X1, tag = ggm_laberinto_tag$X2, Tit = c("Laberinto"), Aut = c("GG Márquez"))
+colera <- tibble(token =ggm_colera_tag$X1, tag = ggm_colera_tag$X2, Tit = c("Colera"), Aut = c("GG Márquez"))
+casa <- tibble(token =llosa_casa_tag$V1, tag = llosa_casa_tag$V2, Tit = c("Casa"), Aut = c("V. Llosa"))
+catedral <- tibble(token =llosa_catedral_tag$X1, tag = llosa_catedral_tag$X2, Tit = c("Catedral") , Aut = c("V. Llosa"))
+savolta <- tibble(token =men_savolta_tag$X1, tag = men_savolta_tag$X2, Tit = c("Savolta"), Aut = c("E. Mendoza"))
+comedia <- tibble(token =men_comedia_tag$X1, tag = men_comedia_tag$X2, Tit = c("Comedia"), Aut = c("E. Mendoza"))
+rina <- tibble(token =men_rina_tag$X1, tag = men_rina_tag$X2, Tit = c("Rina"), Aut = c("E. Mendoza"))
+marianela <- tibble(token =gal_marianela_tag$X1, tag = gal_marianela_tag$X2, Tit = c("Marianela"), Aut = c("Galdós"))
+fortunata <- tibble(token =gal_fortunata_tag$X1, tag = gal_fortunata_tag$X2, Tit = c("Fortunata"), Aut = c("Galdós"))
+perfecta <- tibble(token =gal_perfecta_tag$X1, tag = gal_perfecta_tag$X2, Tit = c("Perfecta"), Aut = c("Galdós"))
+guerra <- tibble(token =bio_guerra_tag$V1, tag = bio_guerra_tag$V2, Tit = c("Guerra"), Aut = c("Bioy Casares"))
+sueno <- tibble(token =bio_sueno_tag$V1, tag = bio_sueno_tag$V2, Tit = c("Sueno"), Aut = c("Bioy Casares"))
+
+
+
+# Corpus etiquetado 
+
+
+
+
+novelas_etiquetadas <- rbind(quijote, criticon, buscon, soledad, laberinto, colera, catedral, 
+                             casa, rina, savolta, comedia, fortunata, perfecta, marianela, sueno,  guerra)
+
+
+head(novelas_etiquetadas) %>% knitr::kable()
+
+
+resumen <- read_delim("resumen.csv", ";", 
+                      escape_double = FALSE, col_types = cols(Porcentaje = col_number()), 
+                      trim_ws = TRUE) 
+
+
+
+resumen %>% ggplot(aes(Porcentaje, Tokens_Unicos, color = Aut, shape = Siglo, label = Tit)) + geom_point(size = 3) + 
+  geom_label_repel(aes(label = Tit, size = 7), box.padding = 0.35, point.padding = 0.5, segment.color = 'grey50')
+
+resumen %>% ggplot(aes(Tokens_Totales, Tokens_Unicos, size = Porcentaje, color = Tit)) + geom_point()
+resumen 
+
+
+
+# Corpus contabilizado por token
+
+
+quijote_tok <- quijote  %>% count(token) %>% mutate(token_prop = n / sum(n))
+quijote_tok <- quijote_tok %>% tibble(Tit = c("Quijote"))
+
+criticon_tok <- criticon %>% count(token) %>% mutate(token_prop = n / sum(n)) 
+criticon_tok <- criticon_tok %>% tibble(Tit = c("Criticon"))
+
+buscon_tok <- buscon %>% count(token) %>% mutate(token_prop = n / sum(n)) 
+buscon_tok <- buscon_tok %>% tibble(Tit = c("Buscon"))
+
+laberinto_tok <- laberinto %>% count(token) %>% mutate(token_prop = n / sum(n))
+laberinto_tok <- laberinto_tok %>% tibble(Tit = c("Laberinto"))
+
+soledad_tok <- soledad %>% count(token) %>% mutate(token_prop = n / sum(n))
+soledad_tok <- soledad_tok %>% tibble(Tit = c("Soledad"))
+
+colera_tok <- colera %>% count(token) %>% mutate(token_prop = n / sum(n))
+colera_tok <- colera_tok %>% tibble(Tit = c("Colera"))
+
+catedral_tok <- catedral %>% count(token) %>% mutate(token_prop = n / sum(n))
+catedral_tok <- catedral_tok %>% tibble(Tit = c("Catedral"))
+
+casa_tok <- casa %>% count(token) %>% mutate(token_prop = n / sum(n))
+casa_tok <- casa_tok %>% tibble(Tit = c("Casa"))
+
+comedia_tok <- comedia %>% count(token) %>% mutate(token_prop = n / sum(n))
+comedia_tok <- comedia_tok %>% tibble(Tit = c("Comedia"))
+
+savolta_tok <- savolta %>% count(token) %>% mutate(token_prop = n / sum(n))
+savolta_tok <- savolta_tok %>% tibble(Tit = c("Savolta"))
+
+rina_tok <- rina %>% count(token) %>% mutate(token_prop = n / sum(n))
+rina_tok <- rina_tok %>% tibble(Tit = c("Rina"))
+
+fortunata_tok <- fortunata %>% count(token) %>% mutate(token_prop = n / sum(n))
+fortunata_tok <- fortunata_tok %>% tibble(Tit = c("Fortunata"))
+
+marianela_tok <- marianela %>% count(token) %>% mutate(token_prop = n / sum(n))
+marianela_tok <- marianela_tok %>% tibble(Tit = c("Marianela"))
+
+sueno_tok <- sueno %>% count(token) %>% mutate(token_prop = n / sum(n))
+sueno_tok <- sueno_tok %>% tibble(Tit = c("Sueno"))
+
+guerra_tok <- guerra %>% count(token) %>% mutate(token_prop = n / sum(n))
+guerra_tok <- guerra_tok %>% tibble(Tit = c("Guerra"))
+
+perfecta_tok <- perfecta %>% count(token) %>% mutate(token_prop = n / sum(n))
+perfecta_tok <- perfecta_tok %>% tibble(Tit = c("Perfecta"))
+
+novelas_cuantificacion_tokens <- rbind(quijote_tok, criticon_tok, buscon_tok, soledad_tok, laberinto_tok, colera_tok, 
+                                       catedral_tok, casa_tok, rina_tok, savolta_tok, comedia_tok, perfecta_tok, 
+                                       marianela_tok, fortunata_tok, guerra_tok, sueno_tok)
+
+
+quijote <- quijote  %>% count(tag) %>% mutate(tag_prop = n / sum(n))
+quijote <- quijote %>% tibble(Tit = c("Quijote"))
+quijote <- quijote %>% tibble(Aut = c("Cervantes"))
+
+criticon <- criticon %>% count(tag) %>% mutate(tag_prop = n / sum(n)) 
+criticon <- criticon %>% tibble(Tit = c("Criticon"))
+criticon <- criticon %>% tibble(Aut = c("Gracián"))
+
+buscon <- buscon %>% count(tag) %>% mutate(tag_prop = n / sum(n)) 
+buscon <- buscon %>% tibble(Tit = c("Buscon"))
+buscon <- buscon %>% tibble(Aut = c("Quevedo"))
+
+laberinto <- laberinto %>% count(tag) %>% mutate(tag_prop = n / sum(n))
+laberinto <- laberinto %>% tibble(Tit = c("Laberinto"))
+laberinto <- laberinto %>% tibble(Aut = c("GG Márquez"))
+
+soledad <- soledad %>% count(tag) %>% mutate(tag_prop = n / sum(n))
+soledad <- soledad %>% tibble(Tit = c("Soledad"))
+soledad <- soledad %>% tibble(Aut = c("GG Márquez"))
+
+colera <- colera %>% count(tag) %>% mutate(tag_prop = n / sum(n))
+colera <- colera %>% tibble(Tit = c("Colera"))
+colera <- colera %>% tibble(Aut = c("GG Márquez"))
+
+catedral <- catedral %>% count(tag) %>% mutate(tag_prop = n / sum(n))
+catedral <- catedral %>% tibble(Tit = c("Catedral"))
+catedral <- catedral %>% tibble(Aut = c("V. Llosa"))
+
+casa <- casa %>% count(tag) %>% mutate(tag_prop = n / sum(n))
+casa <- casa %>% tibble(Tit = c("Casa"))
+casa <- casa %>% tibble(Aut = c("V. Llosa"))
+
+
+comedia <- comedia %>% count(tag) %>% mutate(tag_prop = n / sum(n))
+comedia <- comedia %>% tibble(Tit = c("Comedia"))
+comedia <- comedia %>% tibble(Aut = c("E. Mendoza"))
+
+savolta <- savolta %>% count(tag) %>% mutate(tag_prop = n / sum(n))
+savolta <- savolta %>% tibble(Tit = c("Savolta"))
+savolta <- savolta %>% tibble(Aut = c("E. Mendoza"))
+
+rina <- rina %>% count(tag) %>% mutate(tag_prop = n / sum(n))
+rina <- rina %>% tibble(Tit = c("Rina"))
+rina <- rina %>% tibble(Aut = c("E. Mendoza"))
+
+fortunata <- fortunata %>% count(tag) %>% mutate(tag_prop = n / sum(n))
+fortunata <- fortunata %>% tibble(Tit = c("Fortunata"))
+fortunata <-  fortunata %>% tibble(Aut = c("Galdós"))
+
+marianela <- marianela %>% count(tag) %>% mutate(tag_prop = n / sum(n))
+marianela <- marianela %>% tibble(Tit = c("Marianela"))
+marianela <- marianela %>% tibble(Aut = c("Galdós"))
+
+perfecta <- perfecta %>% count(tag) %>% mutate(tag_prop = n / sum(n))
+perfecta <- perfecta %>% tibble(Tit = c("Perfecta"))
+perfecta <- perfecta %>% tibble(Aut = c("Galdós"))
+
+sueno <- sueno %>% count(tag) %>% mutate(tag_prop = n / sum(n))
+sueno <- sueno %>% tibble(Tit = c("Sueno"))
+sueno <- sueno %>% tibble(Aut = c("Bioy Casares"))
+
+guerra <- guerra %>% count(tag) %>% mutate(tag_prop = n / sum(n))
+guerra <- guerra %>% tibble(Tit = c("Guerra"))
+guerra <- guerra %>% tibble(Aut = c("Bioy Casares"))
+
+
+novelas_cuantificacion_etiquetas <- rbind(quijote, criticon, buscon, soledad, laberinto, colera, catedral, casa, rina, savolta, 
+                                          comedia, fortunata, perfecta, marianela, sueno, guerra)
+
+
+
+
+head(comedia) 
+
+novelas_cuantificacion_etiquetas %>% group_by(Tit) %>% filter(tag =="ADJ") 
+
+
+# HistogramaS de volúmenes y proporciones de etiquetas
+
+
+
+proporción_tags <- with(novelas_cuantificacion_etiquetas, tag_prop)
+
+hist(proporción_tags)
+
+
+volumen_tags <- with(novelas_cuantificacion_etiquetas, n)
+
+hist(volumen_tags)
+
+
+
+
+
+# Distribución de porcentaje de etiquetas por novela
+
+
+C <- novelas_cuantificacion_etiquetas %>% group_by(Tit, Aut)  %>%
+  filter(tag_prop >= 0.012 & Aut == "Galdós")  %>%
+  ggplot(aes(Tit, tag_prop)) +
+  scale_y_continuous(trans = "log10") +
+   ylab("Porcentaje de etiquetas sobre total en el texto") +
+  xlab("") +
+  geom_boxplot(coef=3) +
+  geom_jitter(width = 0.1, alpha = 0.2) +
+  ggtitle("Cuantiles de uso de etiquetas: Galdós") +
+  theme(axis.text.x = element_text(angle = 90))
+
+D <- novelas_cuantificacion_etiquetas %>% group_by(Tit, Aut)  %>%
+  filter(tag_prop >= 0.012 & Aut == "V. Llosa")  %>%
+  ggplot(aes(Tit, tag_prop)) +
+  scale_y_continuous(trans = "log10") +
+  ylab("") +
+  xlab("") +
+  geom_boxplot(coef=3) +
+  geom_jitter(width = 0.1, alpha = 0.2) +
+  ggtitle("V. Llosa") +
+  theme(axis.text.x = element_text(angle = 90))
+
+E <- novelas_cuantificacion_etiquetas %>% group_by(Tit, Aut)  %>%
+  filter(tag_prop >= 0.012 & Aut == "Bioy Casares")  %>%
+  ggplot(aes(Tit, tag_prop)) +
+  scale_y_continuous(trans = "log10") +
+  ylab("") +
+  xlab("") +
+  geom_boxplot(coef=3) +
+  geom_jitter(width = 0.1, alpha = 0.2) +
+  ggtitle("Bioy Casares") +
+  theme(axis.text.x = element_text(angle = 90))
+
+G <- novelas_cuantificacion_etiquetas %>% group_by(Tit, Aut)  %>%
+  filter(tag_prop >= 0.012 & Aut == "E. Mendoza")  %>%
+  ggplot(aes(Tit, tag_prop)) +
+  scale_y_continuous(trans = "log10") +
+  ylab("") +
+  xlab("") +
+  geom_boxplot(coef=3) +
+  geom_jitter(width = 0.1, alpha = 0.2) +
+  ggtitle("E. Mendoza") +
+  theme(axis.text.x = element_text(angle = 90))
+
+C / D / E / G + plot_layout(guides = 'collect', ncol = 2)
+
+
+
+novelas_cuantificacion_etiquetas %>% group_by(Tit)  %>%
+  ggplot(aes(Tit, tag_prop)) +
+  ylab("Proporción de Etiquetas") +
+  xlab("Novelas") +
+  scale_y_continuous(trans = "sqrt") +
+  geom_boxplot(coef=3) +
+  geom_jitter(width = 0.1, alpha = 0.2) +
+  ggtitle("") +
+  theme(axis.text.x = element_text(angle = 90)) +
+  facet_grid(~Aut, scales = "free", drop = TRUE)
+
+
+# Distribución de etiquetas por Tit
+
+novelas_cuantificacion_etiquetas %>%  filter(!is.na(tag)) %>%
+  mutate(tag = reorder(tag, n)) %>%
+  ggplot(aes(tag_prop, tag, color = Tit, size = n)) + geom_point() +
+  xlab("Proporcion de etiquetas morfológicas por novela") +
+  ylab("Etiquetas Modelo 'Tree Tagger'") +
+  ggtitle("Distribución de Etiquetado")
+
+A <- novelas_cuantificacion_etiquetas %>%  filter(!is.na(tag)) %>%
+  mutate(tag = reorder(tag, n)) %>%
+  ggplot(aes(tag_prop, tag, color = Tit, size = n)) + geom_point() +
+  xlab("Proporcion de etiquetas morfológicas por novela") +
+  ylab("Etiquetas Modelo 'Tree Tagger'") +
+  ggtitle("Distribución de Etiquetado")
+
+
+
+
+# Detalle de Distribución de etiquetas por Tit
+
+
+novelas_cuantificacion_etiquetas %>%  filter(!is.na(tag) & tag_prop >= 0.025) %>%
+  mutate(tag = reorder(tag, n)) %>%
+  ggplot(aes(tag_prop, tag, color = Aut, size = n)) + geom_point() +
+  ylab("") +
+  xlab("Detalle proporción etiquetas") +
+  ggtitle("Detalle  >= 0.025")
+
+B <- novelas_cuantificacion_etiquetas %>%  filter(!is.na(tag) & tag_prop >= 0.025) %>%
+  mutate(tag = reorder(tag, n)) %>%
+  ggplot(aes(tag_prop, tag, color = Tit, size = n, shape = Aut)) + geom_point() +
+  scale_shape_manual(values=seq(0,8)) + 
+  ylab("") +
+  xlab("Detalle proporción por autor") +
+  ggtitle("Detalle por autor  >= 0.025")
+
+A / B + plot_layout(guides = 'collect', ncol = 2)
+
+
+novelas_cuantificacion_etiquetas %>% filter(Aut == "Cervantes" & tag_prop >= 0.059) %>% arrange(desc(tag_prop))
+novelas_cuantificacion_etiquetas %>% filter(Tit == "Comedia" & tag_prop >= 0.059) %>% arrange(desc(tag_prop))
+novelas_cuantificacion_etiquetas %>% filter(Tit == "Rina" & tag_prop >= 0.0536) %>% arrange(desc(tag_prop))
+novelas_cuantificacion_etiquetas %>% filter(Tit == "Savolta" & tag_prop >= 0.08)
+novelas_cuantificacion_etiquetas %>% filter(Tit == "Soledad" & tag_prop >= 0.055) %>% arrange(desc(tag_prop))
+novelas_cuantificacion_etiquetas %>% filter(Tit == "Laberinto" & tag_prop >= 0.0566) %>% arrange(desc(tag_prop))
+novelas_cuantificacion_etiquetas %>% filter(Tit == "Colera" & tag_prop >= 0.055) %>% arrange(desc(tag_prop))
+
+
+#clustering y K-means: NOVELAS
+
+
+x <- novelas_cuantificacion_etiquetas %>%
+  group_by(Tit) %>%
+  ungroup() %>%
+  select(Tit, tag, tag_prop) %>%
+  spread(tag, tag_prop)
+
+
+
+xrow_names <- x$Tit
+x <- x[,-1] %>% as.matrix()
+x <- sweep(x, 2, colMeans(x, na.rm = TRUE))
+x <- sweep(x, 1, rowMeans(x, na.rm = TRUE))
+rownames(x) <- row_names
+
+tag_zscore_matrix %>% ggplot(aes(ADJ, Tit)) + geom_point()
+#cargar stylo para aplicar dist.delta o eder En caso contrario, carga euclidean por defecto 
+
+
+
+NC <- tag_zscore_matrix %>% mutate(Tit = reorder(Tit, NC)) %>% ggplot(aes(NC, Tit)) + geom_bar(stat = "identity", fill = "Blue") 
+PREP <- tag_zscore_matrix %>% mutate(Tit = reorder(Tit, PREP)) %>% ggplot(aes(PREP, Tit)) + geom_bar(stat = "identity", fill = "Blue") 
+VLfin <- tag_zscore_matrix %>% mutate(Tit = reorder(Tit, VLfin)) %>% ggplot(aes(VLfin, Tit)) + geom_bar(stat = "identity", fill = "Blue") 
+ART <- tag_zscore_matrix %>% mutate(Tit = reorder(Tit, ART)) %>% ggplot(aes(ART, Tit)) + geom_bar(stat = "identity", fill = "Blue")
+PERCT <- tag_zscore_matrix %>% mutate(Tit = reorder(Tit, PERCT)) %>% ggplot(aes(PERCT, Tit)) + geom_bar(stat = "identity", fill = "Orange")
+VMger <- tag_zscore_matrix %>% mutate(Tit = reorder(Tit, VMger)) %>% ggplot(aes(VMger, Tit)) + geom_bar(stat = "identity", fill = "Red")
+VHadj <- tag_zscore_matrix %>% mutate(Tit = reorder(Tit, VHadj)) %>% ggplot(aes(VHadj, Tit)) + geom_bar(stat = "identity", fill = "Red")
+ACRNM <-  tag_zscore_matrix %>% mutate(Tit = reorder(Tit, ACRNM)) %>% ggplot(aes(ACRNM, Tit)) + geom_bar(stat = "identity", fill = "Red")
+VEger <-  tag_zscore_matrix %>% mutate(Tit = reorder(Tit, VEger)) %>% ggplot(aes(VEger, Tit)) + geom_bar(stat = "identity", fill = "Red")
+CM <-  tag_zscore_matrix %>% mutate(Tit = reorder(Tit, CM)) %>% ggplot(aes(CM, Tit)) + geom_bar(stat = "identity", fill = "Blue")
+
+NC + PREP + VLfin + ART + CM + VEger + ACRNM + VHadj + VMger
+
+as.matrix(dist.delta(x))
+
+d <- dist.delta(x)
+
+d
+
+h <- hclust(d)
+
+h
+
+plot(h, cex = 0.9, main = "", xlab = "")
+
+#mapa de grafos
+
+test_grafos <- read_csv("test_stylo_articulo_CA_67_MFWs_Culled_0__Eders_Delta_Started_at_0EDGES.csv")
+ggraph(R_Text_Analysis_CA_70_MFWs_Culled_0_Eder_s_Delta_Started_at_0EDGES, layout = "kk") +
+  geom_edge_link(aes(edge_alpha = Weight),
+                 show.legend = FALSE,
+                 arrow = arrow(type = "closed", length = unit(2, "mm"))) +
+  geom_node_point(color = "blue", size = 3) +
+  geom_node_text(aes(label = name), vjust = 1, hjust = 1) +
+  theme_void()
+
+
+
+
+x_0 <- x
+x_0[is.na(x_0)] <- 0
+k <- kmeans(x_0, centers = 10)
+
+k
+
+#clustering y K-means: TAGS
+
+
+y <- novelas_cuantificacion_etiquetas %>%
+  group_by(Tit) %>%
+  ungroup() %>%
+  select(tag, Tit, tag_prop) %>%
+  spread(Tit, tag_prop)
+
+novelas_cuantificacion_etiquetas
+
+y
+
+row_names <- y$tag
+y <- y[,-1] %>% as.matrix()
+y <- sweep(y, 2, colMeans(y, na.rm = TRUE))
+y <- sweep(y, 1, rowMeans(y, na.rm = TRUE))
+rownames(y) <- row_names
+
+z <- dist.delta(y)
+
+
+h_2 <- hclust(z)
+
+write.csv(y, "tab")
+
+plot(h_2, cex = 0.9, main = "", xlab = "POS-Taggs")
+
+y_0 <- y
+y_0[is.na(y_0)] <- 0
+k_2 <- kmeans(y_0, centers = 10)
+
+
+
+ggplot() +  
+  geom_point(data = tag_zscore_matrix %>% 
+               group_by(ADJ, Tit) %>%
+               aes(ADJ, Tit, Color = "ADJ")) +
+  geom_point(data = tag_zscore_matrix %>%
+               group_by(ADV, Tit) %>%
+              aes(ADV, Tit, Color = "ADV")) +
+  ggtitle("Matriz de valores de etiqueta") +
+  xlab("") +
+  ylab("")
